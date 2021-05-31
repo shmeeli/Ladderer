@@ -11,7 +11,7 @@ from discord.ext import commands
 from decouple import config
 
 #get env vars for aws buckets
-AWS_S3_BUCKET = config("AWS_S3_BUCKET")
+#AWS_S3_BUCKET = config("AWS_S3_BUCKET")
 
 AWS_ACCESS_KEY_ID = os.environ.get('AWS_ACCESS_KEY_ID', 'Not Set')
 if AWS_ACCESS_KEY_ID == 'Not Set':
