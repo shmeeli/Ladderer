@@ -12,14 +12,14 @@ from discord.ext import commands
 
 # for p in sys.path:
 #     print(p)
-
-TOKEN = os.environ.get('API_KEY')
+#TOKEN = "ODM3NzcxODM3Mjg1OTkwNTQx.YIxZ0w.HBglBGDmYm13zi7xcJHE-w1Sc1o"
+TOKEN = os.environ.get('API_KEY', 'Not Set')
 client = commands.Bot(command_prefix = '!')
 
 
 @client.event
 async def on_ready():
-    print('Bot online.')
+    print('Ladderer online.')
 
 # @client.command(brief='')
 # async def command(ctx):
@@ -385,7 +385,7 @@ async def on_reaction_add(reaction, user):
                 queue = queue[queue['id1'] != id1]
                 queue.to_csv('q.csv', index=False)
 
-@client.command(brief='showing rankings')
+@client.command(brief='displays rankings')
 async def rank(ctx):
     #get the db csv
     db = pd.read_csv('db.csv')
@@ -401,11 +401,12 @@ async def rank(ctx):
 
 @client.command(brief='admin command - stops ladderer')
 async def stop(ctx):
-    if ctx.message.author.id == 203624088420352001 or ctx.message.author.id == 837794320953507840:
-        await ctx.send("Stopped Ladderer")
-        await client.logout()
-    else:
-        await ctx.send("You don\'t have permission to use this command ")
+    # if ctx.message.author.id == 203624088420352001 or ctx.message.author.id == 837794320953507840:
+    #     await ctx.send("Stopped Ladderer")
+    #     await client.logout()
+    # else:
+    #     await ctx.send("You don\'t have permission to use this command ")
+    await ctx.send("You don\'t have permission to use this command ")
 
 @client.command(brief='admin command - clears the queue completely')
 async def cq(ctx):
