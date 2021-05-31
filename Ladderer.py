@@ -13,7 +13,7 @@ from discord.ext import commands
 # for p in sys.path:
 #     print(p)
 
-TOKEN = 'ODM3NzcxODM3Mjg1OTkwNTQx.YIxZ0w.Hy6EU6no1yKzmAw3imctip5IOA4'
+TOKEN = os.environ.get('API_KEY')
 client = commands.Bot(command_prefix = '!')
 
 
