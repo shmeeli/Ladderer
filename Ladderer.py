@@ -2,18 +2,51 @@ import discord
 import random
 import os
 
+
+import boto3
 from trueskill import Rating, quality_1vs1, rate_1vs1
 import pandas as pd
 import numpy as np
 from discord.ext import commands
+from decouple import config
 
+#get env vars for aws buckets
+AWS_S3_BUCKET = config("AWS_S3_BUCKET")
 
+AWS_ACCESS_KEY_ID = os.environ.get('AWS_ACCESS_KEY_ID', 'Not Set')
+if AWS_ACCESS_KEY_ID == 'Not Set':
+    AWS_ACCESS_KEY_ID = config("AWS_ACCESS_KEY_ID")
 
+AWS_SECRET_ACCESS_KEY = os.environ.get('AWS_SECRET_ACCESS_KEY', 'Not Set')
+if AWS_SECRET_ACCESS_KEY == 'Not Set':
+    AWS_SECRET_ACCESS_KEY = config("AWS_SECRET_ACCESS_KEY")
 
-# for p in sys.path:
-#     print(p)
+REGION = os.environ.get('REGION', 'Not Set')
+if REGION == 'Not Set':
+    REGION = config("REGION")
 
+KEY = "load/db.csv"
+
+# Creating the low level functional client
+s3_client = boto3.client(
+    's3',
+    aws_access_key_id = AWS_ACCESS_KEY_ID,
+    aws_secret_access_key = AWS_SECRET_ACCESS_KEY,
+    region_name = REGION
+)
+
+# Creating the high level object oriented interface
+s3_resource = boto3.resource(
+    's3',
+    aws_access_key_id = AWS_ACCESS_KEY_ID,
+    aws_secret_access_key = AWS_SECRET_ACCESS_KEY,
+    region_name = REGION
+)
+
+#Get token for bot
 TOKEN = os.environ.get('API_KEY', 'Not Set')
+if TOKEN == 'Not Set':
+    TOKEN = config('API_KEY')
 client = commands.Bot(command_prefix = '!')
 
 
@@ -21,96 +54,25 @@ client = commands.Bot(command_prefix = '!')
 async def on_ready():
     print('Ladderer online.')
 
-# @client.command(brief='')
-# async def command(ctx):
-#     db = pd.read_csv('db.csv')
-#     print('Test Command.')
-#     id = ctx.message.author.id
-#     await ctx.send("<@" + str(id) + ">")
-#     await ctx.send(str(db))
-
-# @client.command(brief='')
-# async def db(ctx):
-#     db = pd.read_csv('db.csv')
-#     await ctx.send(db)
-
 @client.command(brief='registers the user to the ladder')
 async def register(ctx):
     db = pd.read_csv('db.csv')
     author = ctx.message.author
     id = ctx.message.author.id
-    #await ctx.send(id)
-    #await ctx.send(db.id)
     if (not id in set(db.id)):
         temp = pd.DataFrame({'name': [author], 'id': [id], 'rating': [0], 'ts': [25.0], 'stdev': [6.458], 'game wins': [0], 'game losses': [0], 'set wins': [0], 'set losses': [0]})
         temp.set_index('id')
         db = db.append(temp)
         db.to_csv('db.csv', index=False)
-        #await ctx.send(f'Successfully added <@{id}> to ladder!')
-        embed = discord.Embed(title=f'Successfully added <@{id}> to ladder!', color=0x00FF00)
+        embed = discord.Embed(title=f'Successfully added {author} to ladder!', color=0x00FF00)
         embed.add_field(name='id', value=id, inline=True)
-        #channel = client.get_channel(ctx.channel.id)
         msg = await ctx.send(embed=embed)
     else:
         embed = discord.Embed(title="Failed to add user to ladder!", color=0xFF0000)
         embed.add_field(name='id', value=id, inline=False)
         embed.add_field(name='error', value=f"There is already a player for <@{id}> !", inline=False)
-        #channel = client.get_channel(ctx.channel.id)
         msg = await ctx.send(embed=embed)
-        #await ctx.send("Didn\'t create a new user for <@" + str(id) + "> becuase a user already exists!")
 
-# @client.command(brief='report the results of a match')
-# async def report(ctx, user, wins, losses):
-#     return
-#     db = pd.read_csv('db.csv')
-#     db = db.astype({'rating': 'float64','game wins': 'int64','game losses': 'int64','set wins': 'int64','set losses': 'int64'})
-#     #await ctx.send(db)
-#     #await ctx.send(user)
-#     id = int(user[3:-1])
-#     #await ctx.send(id)
-#     id1 = ctx.message.author.id
-#     p1 = db[db['id'] == ctx.message.author.id].iloc[0]
-#     r1 = Rating(p1.ts,p1.stdev)
-#     p2 = db[db['id'] == id].iloc[0]
-#     r2 = Rating(p2.ts,p2.stdev)
-#     if wins > losses:
-#         new_r1, new_r2 = rate_1vs1(r1,r2)
-#         db = db.set_index('id')
-#         db.at[id,'ts'] = new_r2.mu
-#         db.at[id,'stdev'] = new_r2.sigma
-#         db.at[id,'rating'] = new_r2.mu - 3.0 * new_r2.sigma
-#         db.loc[id,'game wins'] += int(losses)
-#         db.loc[id,'game losses'] += int(wins)
-#         db.loc[id,'set losses'] += 1
-#         db.at[id1,'ts'] = new_r1.mu
-#         db.at[id1,'stdev'] = new_r1.sigma
-#         db.at[id1,'rating'] = new_r1.mu - 3.0 * new_r1.sigma
-#         db.loc[id1,'game wins'] += int(wins)
-#         db.loc[id1,'game losses'] += int(losses)
-#         db.loc[id1,'set wins'] += 1
-#         await ctx.send(f'<@{id1}> defeated <@{id}> {wins} - {losses}')
-#     elif wins < losses:
-#         new_r2, new_r1 = rate_1vs1(r2,r1)
-#         db = db.set_index('id')
-#         db.at[id,'ts'] = new_r2.mu
-#         db.at[id,'stdev'] = new_r2.sigma
-#         db.at[id,'rating'] = new_r2.mu - 3.0 * new_r2.sigma
-#         db.loc[id,'game wins'] += int(losses)
-#         db.loc[id,'game losses'] += int(wins)
-#         db.loc[id,'set wins'] += + 1
-#         db.at[id1,'ts'] = new_r1.mu
-#         db.at[id1,'stdev'] = new_r1.sigma
-#         db.at[id1,'rating'] = new_r1.mu - 3.0 * new_r1.sigma
-#         db.loc[id1,'game wins'] += int(wins)
-#         db.loc[id1,'game losses'] += int(losses)
-#         db.loc[id1,'set losses'] += 1
-#         await ctx.send(f'<@{id}> defeated <@{id1}> {losses} - {wins}')
-#     else:
-#         await ctx.send('error: neither player won the set!')
-#     db = db.reset_index()
-#     #await ctx.send(db)
-#     #await ctx.send(db.dtypes)
-#     db.to_csv('db.csv', index=False)
 
 
 async def print_verbose(p):
@@ -138,7 +100,7 @@ async def dq(ctx):
             queue.to_csv('q.csv', index=False)
             msg = await ctx.send(embed=success)
             return
-    failure = discord.Embed(title=f'Filed to remove {name} from queue!', color=0x00FF00)
+    failure = discord.Embed(title=f'Failed to remove {name} from queue!', color=0xFF0000)
     failure.add_field(name="Reason:",value=f'{name} wasn\'t in queue.')
     msg = await ctx.send(embed=failure)
 
@@ -181,14 +143,15 @@ async def q(ctx):
                     embed.add_field(name='id2', value=queue.at[i,'id2'], inline=True)
                     channel = client.get_channel(ctx.channel.id)
                     msg = await channel.send(embed=embed)
-                    emojis = ['✅','☑️']#,'❌']
+                    emojis = ['✅','☑️','❌']
                     for emoji in emojis:
                         await msg.add_reaction(emoji)
                     return
                 else:
                     embed = discord.Embed(title=f'{ctx.message.author} is looking for a match!', color=0x000000)
-                    #temp ranking field
-                    embed.add_field(name='Ranking', value=-1, inline=True)
+                    db = sort_by_rating(db)
+                    rank = db[db['id']==id].index.values[0] + 1
+                    embed.add_field(name='Ranking', value=rank, inline=True)
                     #set id to index so we can search by id
                     db = db.set_index('id')
                     embed.add_field(name='Rating', value=round(db.at[id,'rating'],4), inline=True)
@@ -223,8 +186,9 @@ async def q(ctx):
                     return
                 else:
                     embed = discord.Embed(title=f'{ctx.message.author} is looking for a match!', color=0x000000)
-                    #temp ranking field
-                    embed.add_field(name='Ranking', value=-1, inline=True)
+                    db = sort_by_rating(db)
+                    rank = db[db['id']==id].index.values[0] + 1
+                    embed.add_field(name='Ranking', value=rank, inline=True)
                     #set id to index so we can search by id
                     db = db.set_index('id')
                     embed.add_field(name='Rating', value=round(db.at[id,'rating'],4), inline=True)
@@ -237,22 +201,21 @@ async def q(ctx):
         print("no matches open")
         #we go here if there isn't an open match
         embed = discord.Embed(title=f'{ctx.message.author} is looking for a match!', color=0x000000)
+        db = sort_by_rating(db)
+        rank = db[db['id']==id].index.values[0] + 1
         #temp ranking field
-        embed.add_field(name='Ranking', value=-1, inline=True)
+        embed.add_field(name='Ranking', value=rank, inline=True)
         #set id to index so we can search by id
         db = db.set_index('id')
         embed.add_field(name='Rating', value=round(db.at[id,'rating'],4), inline=True)
-        #await ctx.send(f"{ctx.channel.id}")
+        #get the channel (might be unnecessary)
         channel = client.get_channel(ctx.channel.id)
+        #send the embed to the channel
         msg = await channel.send(embed=embed)
         temp = pd.DataFrame({'id1': [id],'id2': [-1], 'status':[-1]})
         queue = queue.append(temp)
         queue.to_csv('q.csv', index=False)
 
-        #emotes code
-        #emojis = ['✅','☑️','❌']
-        #for emoji in emojis:
-        #    await msg.add_reaction(emoji)
     else:
         embed = discord.Embed(title=f'Error adding user to queue!', color=0xFF0000)
         embed.add_field(name='Reason:',value=f'<@{id}> is already in queue!', inline=False)
@@ -287,14 +250,6 @@ async def on_reaction_add(reaction, user):
                 id2 = int(field.value)
             elif (field.name == 'match'):
                 type = True
-            #await ch.send(field.name)
-            #await ch.send(field.value)
-
-    #await ch.send(f'id1 = {id1}')
-    #await ch.send(f'id2 = {id2}')
-    #await ch.send(f'type = {type}')
-    #print(reaction.count)
-    #print(user_list)
     if (emoji != '☑️' and emoji != '✅' and emoji != '❌') or (user.id != id1 and user.id != id2):
         await reaction.remove(user)
     else:
@@ -401,12 +356,12 @@ async def rank(ctx):
 
 @client.command(brief='admin command - stops ladderer')
 async def stop(ctx):
-    # if ctx.message.author.id == 203624088420352001 or ctx.message.author.id == 837794320953507840:
-    #     await ctx.send("Stopped Ladderer")
-    #     await client.logout()
-    # else:
-    #     await ctx.send("You don\'t have permission to use this command ")
-    await ctx.send("You don\'t have permission to use this command ")
+    if ctx.message.author.id == 203624088420352001 or ctx.message.author.id == 837794320953507840:
+        await ctx.send("Stopped Ladderer")
+        await client.logout()
+    else:
+        await ctx.send("You don\'t have permission to use this command ")
+    #await ctx.send("You don\'t have permission to use this command ")
 
 @client.command(brief='admin command - clears the queue completely')
 async def cq(ctx):
@@ -414,6 +369,52 @@ async def cq(ctx):
         queue = pd.DataFrame({'id1': [-1],'id2': [-1], 'status':[-1]})
         queue.to_csv('q.csv', index=False)
         await ctx.send("cleared queue.")
+    else:
+        await ctx.send("You don\'t have permission to use this command ")
+
+#returns dataframe sorted by rating
+def sort_by_rating(df):
+    df = df.astype({'rating': 'float64','game wins': 'int64','game losses': 'int64','set wins': 'int64','set losses': 'int64'})
+    df = df.sort_values(by=['rating'], ascending=False)
+    df = df.reset_index()
+    return df
+
+#download csv with given key from S3
+def get_csv(key):
+    # Create the S3 object
+    obj = s3_client.get_object(
+        Bucket = 'ladderer',
+        Key = key
+    )
+    # Read data from the S3 object
+    data = pd.read_csv(obj['Body'])
+    # Print the data frame
+    print('Printing the data frame...')
+    print(data)
+
+#upload csv with given filename and key to S3
+def upload_csv(filename,key):
+    print('Backing up the data frame on AWS...')
+    s3_resource.meta.client.upload_file(
+        Filename=filename, Bucket='ladderer',
+        Key=key)
+
+@client.command(brief='admin command - backs up current csv on aws server')
+async def backup(ctx):
+    if ctx.message.author.id == 203624088420352001 or ctx.message.author.id == 837794320953507840:
+        upload_csv('db.csv',KEY)
+        embed = discord.Embed(title=f'Backup Successful', color=0x00FF00)
+        msg = await ctx.send(embed=embed)
+    else:
+        await ctx.send("You don\'t have permission to use this command ")
+
+
+@client.command(brief='admin command - gets backs up current csv on aws server')
+async def getbackup(ctx):
+    if ctx.message.author.id == 203624088420352001 or ctx.message.author.id == 837794320953507840:
+        get_csv(KEY)
+        embed = discord.Embed(title=f'Download Successful', color=0x00FF00)
+        msg = await ctx.send(embed=embed)
     else:
         await ctx.send("You don\'t have permission to use this command ")
 
