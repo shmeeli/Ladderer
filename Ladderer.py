@@ -391,6 +391,7 @@ def get_csv(key):
     # Print the data frame
     print('Printing the data frame...')
     print(data)
+    return data
 
 #upload csv with given filename and key to S3
 def upload_csv(filename,key):
@@ -412,9 +413,10 @@ async def backup(ctx):
 @client.command(brief='admin command - gets backs up current csv on aws server')
 async def getbackup(ctx):
     if ctx.message.author.id == 203624088420352001 or ctx.message.author.id == 837794320953507840:
-        get_csv(KEY)
+        db = get_csv(KEY)
         embed = discord.Embed(title=f'Download Successful', color=0x00FF00)
         msg = await ctx.send(embed=embed)
+        db.to_csv('db.csv', index=False)
     else:
         await ctx.send("You don\'t have permission to use this command ")
 
