@@ -10,6 +10,27 @@ import numpy as np
 from discord.ext import commands
 from decouple import config
 
+#download csv with given key from S3
+def get_csv(key):
+    # Create the S3 object
+    obj = s3_client.get_object(
+        Bucket = 'ladderer',
+        Key = key
+    )
+    # Read data from the S3 object
+    data = pd.read_csv(obj['Body'])
+    # Print the data frame
+    print('Printing the data frame...')
+    print(data)
+    return data
+
+#upload csv with given filename and key to S3
+def upload_csv(filename,key):
+    print('Backing up the data frame on AWS...')
+    s3_resource.meta.client.upload_file(
+        Filename=filename, Bucket='ladderer',
+        Key=key)
+
 #get env vars for aws buckets
 #AWS_S3_BUCKET = config("AWS_S3_BUCKET")
 
@@ -382,27 +403,6 @@ def sort_by_rating(df):
     df = df.sort_values(by=['rating'], ascending=False)
     df = df.reset_index()
     return df
-
-#download csv with given key from S3
-def get_csv(key):
-    # Create the S3 object
-    obj = s3_client.get_object(
-        Bucket = 'ladderer',
-        Key = key
-    )
-    # Read data from the S3 object
-    data = pd.read_csv(obj['Body'])
-    # Print the data frame
-    print('Printing the data frame...')
-    print(data)
-    return data
-
-#upload csv with given filename and key to S3
-def upload_csv(filename,key):
-    print('Backing up the data frame on AWS...')
-    s3_resource.meta.client.upload_file(
-        Filename=filename, Bucket='ladderer',
-        Key=key)
 
 @client.command(brief='admin command - backs up current csv on aws server')
 async def backup(ctx):
