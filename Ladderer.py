@@ -49,6 +49,11 @@ if TOKEN == 'Not Set':
     TOKEN = config('API_KEY')
 client = commands.Bot(command_prefix = '!')
 
+#get the backup from S3 on startup
+db = get_csv(KEY)
+db.to_csv('db.csv', index=False)
+q = get_csv("load/q.csv")
+q.to_csv('q.csv', index=False)
 
 @client.event
 async def on_ready():
@@ -159,6 +164,7 @@ async def q(ctx):
                     channel = client.get_channel(ctx.channel.id)
                     msg = await channel.send(embed=embed)
                     queue.to_csv('q.csv', index=False)
+                    upload_csv('q.csv',KEY)
                     return
 
             elif queue.at[i,'id2'] == -1 and queue.at[i,'status'] == -1:
@@ -196,6 +202,7 @@ async def q(ctx):
                     channel = client.get_channel(ctx.channel.id)
                     msg = await channel.send(embed=embed)
                     queue.to_csv('q.csv', index=False)
+                    upload_csv('q.csv',KEY)
                     return
 
         print("no matches open")
@@ -215,7 +222,7 @@ async def q(ctx):
         temp = pd.DataFrame({'id1': [id],'id2': [-1], 'status':[-1]})
         queue = queue.append(temp)
         queue.to_csv('q.csv', index=False)
-
+        upload_csv('q.csv',KEY)
     else:
         embed = discord.Embed(title=f'Error adding user to queue!', color=0xFF0000)
         embed.add_field(name='Reason:',value=f'<@{id}> is already in queue!', inline=False)
@@ -225,19 +232,14 @@ async def q(ctx):
 async def on_reaction_add(reaction, user):
     if user.bot:
         return
-
     #Access embed message
     message = reaction.message
     embed = reaction.message.embeds[0]
     emoji = reaction.emoji
     #get the current queue
     queue = pd.read_csv('q.csv')
-
-
     #user_list = await message.reactions[0].users().flatten()
-
     ch = message.channel
-
     type = False
     id1 = -1
     id2 = -1
@@ -297,6 +299,7 @@ async def on_reaction_add(reaction, user):
                 #update db
                 db = db.reset_index()
                 db.to_csv('db.csv', index=False)
+                upload_csv('db.csv',KEY)
             #await ch.send(users)
             #await fixed_channel.send(embed=embed)
         elif type and emoji == '☑️' and (user.id == id1 or user.id == id2):
@@ -326,6 +329,7 @@ async def on_reaction_add(reaction, user):
                 #update db
                 db = db.reset_index()
                 db.to_csv('db.csv', index=False)
+                upload_csv('db.csv',KEY)
 
         elif type and emoji == '❌' and (user.id == id1 or user.id == id2):
             users = set()
@@ -408,7 +412,6 @@ async def backup(ctx):
         msg = await ctx.send(embed=embed)
     else:
         await ctx.send("You don\'t have permission to use this command ")
-
 
 @client.command(brief='admin command - gets backs up current csv on aws server')
 async def getbackup(ctx):
