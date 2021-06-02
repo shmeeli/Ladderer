@@ -47,6 +47,7 @@ if REGION == 'Not Set':
     REGION = config("REGION")
 
 KEY = "load/db.csv"
+KEY_Q = "load/q.csv"
 
 # Creating the low level functional client
 s3_client = boto3.client(
@@ -73,7 +74,7 @@ client = commands.Bot(command_prefix = '!')
 #get the backup from S3 on startup
 db = get_csv(KEY)
 db.to_csv('db.csv', index=False)
-q = get_csv("load/q.csv")
+q = get_csv(KEY_Q)
 q.to_csv('q.csv', index=False)
 
 @client.event
@@ -185,7 +186,7 @@ async def q(ctx):
                     channel = client.get_channel(ctx.channel.id)
                     msg = await channel.send(embed=embed)
                     queue.to_csv('q.csv', index=False)
-                    upload_csv('q.csv',KEY)
+                    upload_csv('q.csv',KEY_Q)
                     return
 
             elif queue.at[i,'id2'] == -1 and queue.at[i,'status'] == -1:
@@ -223,7 +224,7 @@ async def q(ctx):
                     channel = client.get_channel(ctx.channel.id)
                     msg = await channel.send(embed=embed)
                     queue.to_csv('q.csv', index=False)
-                    upload_csv('q.csv',KEY)
+                    upload_csv('q.csv',KEY_Q)
                     return
 
         print("no matches open")
@@ -243,7 +244,7 @@ async def q(ctx):
         temp = pd.DataFrame({'id1': [id],'id2': [-1], 'status':[-1]})
         queue = queue.append(temp)
         queue.to_csv('q.csv', index=False)
-        upload_csv('q.csv',KEY)
+        upload_csv('q.csv',KEY_Q)
     else:
         embed = discord.Embed(title=f'Error adding user to queue!', color=0xFF0000)
         embed.add_field(name='Reason:',value=f'<@{id}> is already in queue!', inline=False)
