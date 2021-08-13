@@ -10,6 +10,10 @@ import numpy as np
 from discord.ext import commands
 from decouple import config
 
+#returns whether given channel can receive commands
+def check_channel(id):
+    return id == 875866127656452166 or id == 850727078621347840
+
 #download csv with given key from S3
 def get_csv(key):
     # Create the S3 object
@@ -31,10 +35,24 @@ def upload_csv(filename,key):
         Filename=filename, Bucket='ladderer',
         Key=key)
 
+async def send_ranks(channel):
+    #get the db csv
+    db = pd.read_csv('db.csv')
+    db = db.astype({'id': 'int64','rating': 'float64','game wins': 'int64','game losses': 'int64','set wins': 'int64','set losses': 'int64'})
+
+    db = db.sort_values(by=['rating'], ascending=False)
+    db = db.reset_index()
+    print(db)
+    embed = discord.Embed(title=f'Rankings', color=0xFFFF00)
+    for i in range(0,db.shape[0]):
+        embed.add_field(name=f'{i + 1}', value=f"{db.at[i,'name']}:\n rating: {round(db.at[i,'rating'],4)} \n uncertainty: {round(db.at[i,'stdev'],4)}", inline=False)
+    msg = await channel.send(embed=embed)
+
 #get env vars for aws buckets
 #AWS_S3_BUCKET = config("AWS_S3_BUCKET")
 
 AWS_ACCESS_KEY_ID = os.environ.get('AWS_ACCESS_KEY_ID', 'Not Set')
+
 if AWS_ACCESS_KEY_ID == 'Not Set':
     AWS_ACCESS_KEY_ID = config("AWS_ACCESS_KEY_ID")
 
@@ -72,9 +90,14 @@ if TOKEN == 'Not Set':
 client = commands.Bot(command_prefix = '!')
 
 #get the backup from S3 on startup
+print('db:')
 db = get_csv(KEY)
+db = db.astype({'id': 'int64','rating': 'float64','game wins': 'int64','game losses': 'int64','set wins': 'int64','set losses': 'int64'})
 db.to_csv('db.csv', index=False)
+
+print('q:')
 q = get_csv(KEY_Q)
+q = q.astype({'id1': 'int64','id2': 'int64','status': 'int64'})
 q.to_csv('q.csv', index=False)
 
 @client.event
@@ -83,6 +106,9 @@ async def on_ready():
 
 @client.command(brief='registers the user to the ladder')
 async def register(ctx):
+    if not check_channel(ctx.channel.id):
+        print(f'ignoring command since it came from channel {ch.id}!')
+        return
     db = pd.read_csv('db.csv')
     author = ctx.message.author
     id = ctx.message.author.id
@@ -91,6 +117,7 @@ async def register(ctx):
         temp.set_index('id')
         db = db.append(temp)
         db.to_csv('db.csv', index=False)
+        upload_csv('db.csv', KEY)
         embed = discord.Embed(title=f'Successfully added {author} to ladder!', color=0x00FF00)
         embed.add_field(name='id', value=id, inline=True)
         msg = await ctx.send(embed=embed)
@@ -101,7 +128,6 @@ async def register(ctx):
         msg = await ctx.send(embed=embed)
 
 
-
 async def print_verbose(p):
     await ctx.send(p)
     await ctx.send(p.ts)
@@ -109,8 +135,12 @@ async def print_verbose(p):
 
 @client.command(brief='leave the queue for a match')
 async def dq(ctx):
+    if not check_channel(ctx.channel.id):
+        print(f'ignoring command since it came from channel {ch.id}!')
+        return
     #get the current queue
     queue = pd.read_csv('q.csv')
+    queue = queue.astype({'id1': 'int64','id2': 'int64','status': 'int64'})
     #get the author's id
     id = ctx.message.author.id
     name = await client.fetch_user(id)
@@ -120,11 +150,13 @@ async def dq(ctx):
         if queue.at[i,'id1'] == id and queue.at[i,'status'] == -1:
             queue.at[i,'id1'] = -1
             queue.to_csv('q.csv', index=False)
+            upload_csv('q.csv', KEY_Q)
             msg = await ctx.send(embed=success)
             return
         elif queue.at[i,'id2'] != id and queue.at[i,'status'] == -1:
             queue.at[i,'id2'] = -1
             queue.to_csv('q.csv', index=False)
+            upload_csv('q.csv', KEY_Q)
             msg = await ctx.send(embed=success)
             return
     failure = discord.Embed(title=f'Failed to remove {name} from queue!', color=0xFF0000)
@@ -134,13 +166,25 @@ async def dq(ctx):
 
 @client.command(brief='enter the queue for a match')
 async def q(ctx):
+    if not check_channel(ctx.channel.id):
+        print(f'ignoring command since it came from channel {ch.id}!')
+        return
     #get the db csv
+    db = get_csv(KEY)
+    db = db.astype({'id': 'int64','rating': 'float64','game wins': 'int64','game losses': 'int64','set wins': 'int64','set losses': 'int64'})
+    db.to_csv('db.csv', index=False)
+
     db = pd.read_csv('db.csv')
-    db = db.astype({'rating': 'float64','game wins': 'int64','game losses': 'int64','set wins': 'int64','set losses': 'int64'})
+    db = db.astype({'id': 'int64','rating': 'float64','game wins': 'int64','game losses': 'int64','set wins': 'int64','set losses': 'int64'})
     #get the author's id
     id = ctx.message.author.id
 
+
+
     #get the current queue
+    queue = get_csv(KEY_Q)
+    queue = queue.astype({'id1': 'int64','id2': 'int64','status': 'int64'})
+    queue.to_csv('q.csv', index=False)
     queue = pd.read_csv('q.csv')
     #read through queue to see if already in queue
     addable = True
@@ -158,6 +202,7 @@ async def q(ctx):
                 if queue.at[i,'id2'] != -1:
                     queue.at[i,'status'] = 1
                     queue.to_csv('q.csv', index=False)
+                    upload_csv('q.csv', KEY_Q)
                     p1 = await client.fetch_user(queue.at[i,"id1"])
                     p2 = await client.fetch_user(queue.at[i,"id2"])
                     embed = discord.Embed(title=f'**{p1}** vs. **{p2}**', color=0xFF0000)
@@ -177,7 +222,8 @@ async def q(ctx):
                 else:
                     embed = discord.Embed(title=f'{ctx.message.author} is looking for a match!', color=0x000000)
                     db = sort_by_rating(db)
-                    rank = db[db['id']==id].index.values[0] + 1
+                    print(db)
+                    rank = -1 #db[db['id']==id].index.values[0] + 1
                     embed.add_field(name='Ranking', value=rank, inline=True)
                     #set id to index so we can search by id
                     db = db.set_index('id')
@@ -231,7 +277,7 @@ async def q(ctx):
         #we go here if there isn't an open match
         embed = discord.Embed(title=f'{ctx.message.author} is looking for a match!', color=0x000000)
         db = sort_by_rating(db)
-        rank = db[db['id']==id].index.values[0] + 1
+        rank = -1 #db[db['id']==id].index.values[0] + 1
         #temp ranking field
         embed.add_field(name='Ranking', value=rank, inline=True)
         #set id to index so we can search by id
@@ -256,12 +302,17 @@ async def on_reaction_add(reaction, user):
         return
     #Access embed message
     message = reaction.message
+    ch = message.channel
+    if not check_channel(ch.id):
+        print(f'ignoring command since it came from channel {ch.id}!')
+        return
     embed = reaction.message.embeds[0]
     emoji = reaction.emoji
     #get the current queue
     queue = pd.read_csv('q.csv')
+    queue = queue.astype({'id1': 'int64','id2': 'int64','status': 'int64'})
     #user_list = await message.reactions[0].users().flatten()
-    ch = message.channel
+
     type = False
     id1 = -1
     id2 = -1
@@ -283,7 +334,7 @@ async def on_reaction_add(reaction, user):
                 return
 
         db = pd.read_csv('db.csv')
-        db = db.astype({'rating': 'float64','game wins': 'int64','game losses': 'int64','set wins': 'int64','set losses': 'int64'})
+        db = db.astype({'id': 'int64','rating': 'float64','game wins': 'int64','game losses': 'int64','set wins': 'int64','set losses': 'int64'})
         p1 = db[db['id'] == id1].iloc[0]
         r1 = Rating(p1.ts,p1.stdev)
         p2 = db[db['id'] == id2].iloc[0]
@@ -318,12 +369,13 @@ async def on_reaction_add(reaction, user):
                 #update queue
                 queue = queue[queue['id1'] != id1]
                 queue.to_csv('q.csv', index=False)
+                upload_csv('q.csv', KEY_Q)
                 #update db
                 db = db.reset_index()
                 db.to_csv('db.csv', index=False)
-                upload_csv('db.csv',KEY)
-            #await ch.send(users)
-            #await fixed_channel.send(embed=embed)
+                upload_csv('db.csv', KEY)
+                await send_ranks(ch)
+
         elif type and emoji == '☑️' and (user.id == id1 or user.id == id2):
             users = set()
             for reaction in message.reactions:
@@ -348,10 +400,13 @@ async def on_reaction_add(reaction, user):
                 #update queue
                 queue = queue[queue['id1'] != id1]
                 queue.to_csv('q.csv', index=False)
+                upload_csv('q.csv', KEY_Q)
                 #update db
                 db = db.reset_index()
                 db.to_csv('db.csv', index=False)
                 upload_csv('db.csv',KEY)
+                await send_ranks(ch)
+
 
         elif type and emoji == '❌' and (user.id == id1 or user.id == id2):
             users = set()
@@ -365,12 +420,13 @@ async def on_reaction_add(reaction, user):
                 await message.add_reaction('👍')
                 queue = queue[queue['id1'] != id1]
                 queue.to_csv('q.csv', index=False)
+                upload_csv('q.csv', KEY_Q)
 
 @client.command(brief='displays rankings')
 async def rank(ctx):
     #get the db csv
     db = pd.read_csv('db.csv')
-    db = db.astype({'rating': 'float64','game wins': 'int64','game losses': 'int64','set wins': 'int64','set losses': 'int64'})
+    db = db.astype({'id': 'int64','rating': 'float64','game wins': 'int64','game losses': 'int64','set wins': 'int64','set losses': 'int64'})
 
     db = db.sort_values(by=['rating'], ascending=False)
     db = db.reset_index()
@@ -394,13 +450,14 @@ async def cq(ctx):
     if ctx.message.author.id == 203624088420352001 or ctx.message.author.id == 837794320953507840:
         queue = pd.DataFrame({'id1': [-1],'id2': [-1], 'status':[-1]})
         queue.to_csv('q.csv', index=False)
+        upload_csv('q.csv', KEY_Q)
         await ctx.send("cleared queue.")
     else:
         await ctx.send("You don\'t have permission to use this command ")
 
 #returns dataframe sorted by rating
 def sort_by_rating(df):
-    df = df.astype({'rating': 'float64','game wins': 'int64','game losses': 'int64','set wins': 'int64','set losses': 'int64'})
+    df = df.astype({'id': 'int64','rating': 'float64','game wins': 'int64','game losses': 'int64','set wins': 'int64','set losses': 'int64'})
     df = df.sort_values(by=['rating'], ascending=False)
     df = df.reset_index()
     return df
@@ -418,6 +475,7 @@ async def backup(ctx):
 async def getbackup(ctx):
     if ctx.message.author.id == 203624088420352001 or ctx.message.author.id == 837794320953507840:
         db = get_csv(KEY)
+        db = db.astype({'id': 'int64','rating': 'float64','game wins': 'int64','game losses': 'int64','set wins': 'int64','set losses': 'int64'})
         embed = discord.Embed(title=f'Download Successful', color=0x00FF00)
         msg = await ctx.send(embed=embed)
         db.to_csv('db.csv', index=False)
